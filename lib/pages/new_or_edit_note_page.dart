@@ -1,9 +1,12 @@
+```dart
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
 
-import '../change_notifiers/new_note_controller.dart';
+import '../bloc/note/note_bloc.dart';
+import '../bloc/note/note_event.dart';
+import '../bloc/note/note_state.dart';
 import '../core/constants.dart';
 import '../core/dialogs.dart';
 import '../widgets/note_back_button.dart';
@@ -24,34 +27,31 @@ class NewOrEditNotePage extends StatefulWidget {
 }
 
 class _NewOrEditNotePageState extends State<NewOrEditNotePage> {
-  late final NewNoteController newNoteController;
   late final TextEditingController titleController;
   late final QuillController quillController;
-
   late final FocusNode focusNode;
 
   @override
   void initState() {
     super.initState();
 
-    newNoteController = context.read<NewNoteController>();
-
-    titleController = TextEditingController(text: newNoteController.title);
+    titleController = TextEditingController();
 
     quillController = QuillController.basic()
       ..addListener(() {
-        newNoteController.content = quillController.document;
+        context.read<NoteBloc>().add(
+              UpdateContent(quillController.document),
+            );
       });
 
     focusNode = FocusNode();
 
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.isNewNote) {
         focusNode.requestFocus();
-        newNoteController.readOnly = false;
+        context.read<NoteBloc>().add(SetReadOnly(false));
       } else {
-        newNoteController.readOnly = true;
-        quillController.document = newNoteController.content;
+        context.read<NoteBloc>().add(SetReadOnly(true));
       }
     });
   }
@@ -66,124 +66,123 @@ class _NewOrEditNotePageState extends State<NewOrEditNotePage> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
+    return BlocBuilder<NoteBloc, NoteState>(
+      builder: (context, state) {
+        titleController.text = state.title;
 
-        if (!newNoteController.canSaveNote) {
-          Navigator.pop(context);
-          return;
-        }
+        return PopScope(
+          canPop: false,
+          onPopInvoked: (didPop) async {
+            if (didPop) return;
 
-        final bool? shouldSave = await showConfirmationDialog(
-          context: context,
-          title: 'Do you want to save the note?',
-        );
+            if (!state.canSaveNote) {
+              Navigator.pop(context);
+              return;
+            }
 
-        if (shouldSave == null) return;
+            final bool? shouldSave = await showConfirmationDialog(
+              context: context,
+              title: 'Do you want to save the note?',
+            );
 
-        if (!context.mounted) return;
+            if (shouldSave == null) return;
 
-        if (shouldSave) {
-          newNoteController.saveNote(context);
-        }
+            if (shouldSave) {
+              context.read<NoteBloc>().add(SaveNote());
+            }
 
-        Navigator.pop(context);
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          leading: const NoteBackButton(),
-          title: Text(widget.isNewNote ? 'New Note' : 'Edit Note'),
-          actions: [
-            Selector<NewNoteController, bool>(
-              selector: (context, newNoteController) =>
-                  newNoteController.readOnly,
-              builder: (context, readOnly, child) => NoteIconButtonOutlined(
-                icon:
-                    readOnly ? FontAwesomeIcons.pen : FontAwesomeIcons.bookOpen,
-                onPressed: () {
-                  newNoteController.readOnly = !readOnly;
+            if (context.mounted) Navigator.pop(context);
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              leading: const NoteBackButton(),
+              title: Text(widget.isNewNote ? 'New Note' : 'Edit Note'),
+              actions: [
+                NoteIconButtonOutlined(
+                  icon: state.readOnly
+                      ? FontAwesomeIcons.pen
+                      : FontAwesomeIcons.bookOpen,
+                  onPressed: () {
+                    context
+                        .read<NoteBloc>()
+                        .add(SetReadOnly(!state.readOnly));
 
-                  if (newNoteController.readOnly) {
-                    FocusScope.of(context).unfocus();
-                  } else {
-                    focusNode.requestFocus();
-                  }
-                },
-              ),
-            ),
-            Selector<NewNoteController, bool>(
-              selector: (_, newNoteController) => newNoteController.canSaveNote,
-              builder: (_, canSaveNote, __) => NoteIconButtonOutlined(
-                icon: FontAwesomeIcons.check,
-                onPressed: canSaveNote
-                    ? () {
-                        newNoteController.saveNote(context);
-                        Navigator.pop(context);
-                      }
-                    : null,
-              ),
-            ),
-          ],
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Column(
-            children: [
-              Selector<NewNoteController, bool>(
-                selector: (context, controller) => controller.readOnly,
-                builder: (context, readOnly, child) => TextField(
-                  controller: titleController,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  decoration: const InputDecoration(
-                    hintText: 'Title here',
-                    hintStyle: TextStyle(
-                      color: gray300,
-                    ),
-                    border: InputBorder.none,
-                  ),
-                  canRequestFocus: !readOnly,
-                  onChanged: (newValue) {
-                    newNoteController.title = newValue;
+                    if (state.readOnly) {
+                      focusNode.requestFocus();
+                    } else {
+                      FocusScope.of(context).unfocus();
+                    }
                   },
                 ),
-              ),
-              NoteMetadata(
-                note: newNoteController.note,
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Divider(color: gray500, thickness: 2),
-              ),
-              Expanded(
-                child: Selector<NewNoteController, bool>(
-                  selector: (_, controller) => controller.readOnly,
-                  builder: (_, readOnly, __) => Column(
-                    children: [
-                      Expanded(
-                        child: QuillEditor.basic(
-                          configurations: QuillEditorConfigurations(
-                            controller: quillController,
-                            placeholder: 'Note here...',
-                            expands: true,
-                            readOnly: readOnly,
-                          ),
-                          focusNode: focusNode,
-                        ),
-                      ),
-                      if (!readOnly) NoteToolbar(controller: quillController),
-                    ],
-                  ),
+                NoteIconButtonOutlined(
+                  icon: FontAwesomeIcons.check,
+                  onPressed: state.canSaveNote
+                      ? () {
+                          context.read<NoteBloc>().add(SaveNote());
+                          Navigator.pop(context);
+                        }
+                      : null,
                 ),
+              ],
+            ),
+            body: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: titleController,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'Title here',
+                      hintStyle: TextStyle(
+                        color: gray300,
+                      ),
+                      border: InputBorder.none,
+                    ),
+                    canRequestFocus: !state.readOnly,
+                    onChanged: (value) {
+                      context.read<NoteBloc>().add(UpdateTitle(value));
+                    },
+                  ),
+
+                  NoteMetadata(
+                    note: state.note,
+                  ),
+
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Divider(color: gray500, thickness: 2),
+                  ),
+
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: QuillEditor.basic(
+                            configurations: QuillEditorConfigurations(
+                              controller: quillController,
+                              placeholder: 'Note here...',
+                              expands: true,
+                              readOnly: state.readOnly,
+                            ),
+                            focusNode: focusNode,
+                          ),
+                        ),
+                        if (!state.readOnly)
+                          NoteToolbar(controller: quillController),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
+```

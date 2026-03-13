@@ -1,10 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'change_notifiers/notes_provider.dart';
-import 'change_notifiers/registration_controller.dart';
+import 'bloc/note/note_bloc.dart';
 import 'core/constants.dart';
 import 'firebase_options.dart';
 import 'pages/main_page.dart';
@@ -17,6 +16,7 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
   runApp(const MyApp());
 }
 
@@ -25,10 +25,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
+    return MultiBlocProvider(
       providers: [
-        ChangeNotifierProvider(create: (context) => NotesProvider()),
-        ChangeNotifierProvider(create: (context) => RegistrationController()),
+        BlocProvider(
+          create: (context) => NoteBloc(),
+        ),
       ],
       child: MaterialApp(
         title: 'Awesome Notes',
@@ -37,7 +38,7 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
           fontFamily: 'Poppins',
           scaffoldBackgroundColor: background,
-          appBarTheme: Theme.of(context).appBarTheme.copyWith(
+          appBarTheme: ThemeData().appBarTheme.copyWith(
                 backgroundColor: background,
                 titleTextStyle: const TextStyle(
                   color: primary,

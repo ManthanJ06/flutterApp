@@ -1,32 +1,31 @@
+```dart
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
 
-import '../change_notifiers/notes_provider.dart';
+import '../bloc/notes/notes_bloc.dart';
+import '../bloc/notes/notes_event.dart';
 import '../core/constants.dart';
 
 class SearchField extends StatefulWidget {
-  const SearchField({
-    super.key,
-  });
+  const SearchField({super.key});
 
   @override
   State<SearchField> createState() => _SearchFieldState();
 }
 
 class _SearchFieldState extends State<SearchField> {
-  late final NotesProvider notesProvider;
   late final TextEditingController searchController;
 
   @override
   void initState() {
     super.initState();
 
-    notesProvider = context.read();
-
     searchController = TextEditingController()
       ..addListener(() {
-        notesProvider.searchTerm = searchController.text;
+        context.read<NotesBloc>().add(
+              SearchNotesEvent(searchController.text),
+            );
       });
   }
 
@@ -52,6 +51,7 @@ class _SearchFieldState extends State<SearchField> {
           child: GestureDetector(
             onTap: () {
               searchController.clear();
+              context.read<NotesBloc>().add(const SearchNotesEvent(''));
             },
             child: const Icon(FontAwesomeIcons.circleXmark),
           ),
@@ -60,27 +60,20 @@ class _SearchFieldState extends State<SearchField> {
         filled: true,
         isDense: true,
         contentPadding: EdgeInsets.zero,
-        prefixIconConstraints: const BoxConstraints(
-          minWidth: 42,
-          minHeight: 42,
-        ),
-        suffixIconConstraints: const BoxConstraints(
-          minWidth: 42,
-          minHeight: 42,
-        ),
+        prefixIconConstraints:
+            const BoxConstraints(minWidth: 42, minHeight: 42),
+        suffixIconConstraints:
+            const BoxConstraints(minWidth: 42, minHeight: 42),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(
-            color: primary,
-          ),
+          borderSide: const BorderSide(color: primary),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(
-            color: primary,
-          ),
+          borderSide: const BorderSide(color: primary),
         ),
       ),
     );
   }
 }
+```

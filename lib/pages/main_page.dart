@@ -1,9 +1,11 @@
+```dart
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
 
-import '../change_notifiers/new_note_controller.dart';
-import '../change_notifiers/notes_provider.dart';
+import '../bloc/note/note_bloc.dart';
+import '../bloc/note/note_event.dart';
+import '../bloc/note/note_state.dart';
 import '../core/dialogs.dart';
 import '../models/note.dart';
 import '../services/auth_service.dart';
@@ -38,18 +40,22 @@ class _MainPageState extends State<MainPage> {
                     title: 'Do you want to sign out of the app?',
                   ) ??
                   false;
-              if (shouldLogout) AuthService.logout();
+
+              if (shouldLogout) {
+                AuthService.logout();
+              }
             },
           ),
         ],
       ),
+
       floatingActionButton: NoteFab(
         onPressed: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => ChangeNotifierProvider(
-                create: (context) => NewNoteController(),
+              builder: (context) => BlocProvider.value(
+                value: context.read<NoteBloc>(),
                 child: const NewOrEditNotePage(
                   isNewNote: true,
                 ),
@@ -58,37 +64,46 @@ class _MainPageState extends State<MainPage> {
           );
         },
       ),
-      body: Consumer<NotesProvider>(
-        builder: (context, notesProvider, child) {
-          final List<Note> notes = notesProvider.notes;
-          return notes.isEmpty && notesProvider.searchTerm.isEmpty
-              ? const NoNotes()
-              : Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Column(
-                    children: [
-                      const SearchField(),
-                      if (notes.isNotEmpty) ...[
-                        const ViewOptions(),
-                        Expanded(
-                          child: notesProvider.isGrid
-                              ? NotesGrid(notes: notes)
-                              : NotesList(notes: notes),
-                        ),
-                      ] else
-                        const Expanded(
-                          child: Center(
-                            child: Text(
-                              'No notes found for your search query!',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                    ],
+
+      body: BlocBuilder<NoteBloc, NoteState>(
+        builder: (context, state) {
+
+          final List<Note> notes = state.notes;
+
+          if (notes.isEmpty && state.searchTerm.isEmpty) {
+            return const NoNotes();
+          }
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              children: [
+
+                const SearchField(),
+
+                if (notes.isNotEmpty) ...[
+                  const ViewOptions(),
+
+                  Expanded(
+                    child: state.isGrid
+                        ? NotesGrid(notes: notes)
+                        : NotesList(notes: notes),
                   ),
-                );
+                ] else
+                  const Expanded(
+                    child: Center(
+                      child: Text(
+                        'No notes found for your search query!',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
         },
       ),
     );
   }
 }
+```
